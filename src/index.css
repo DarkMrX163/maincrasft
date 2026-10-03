@@ -1,0 +1,113 @@
+@import "tailwindcss";
+
+@layer base {
+  * {
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  input, textarea {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+}
+
+.font-pixel {
+  font-family: 'Press Start 2P', monospace;
+}
+
+.font-game {
+  font-family: 'Rubik', sans-serif;
+}
+
+/* Minecraft UI styled borders */
+.mc-panel {
+  background: #c6c6c6;
+  border-top: 3px solid #ffffff;
+  border-left: 3px solid #ffffff;
+  border-right: 3px solid #555555;
+  border-bottom: 3px solid #555555;
+  box-shadow: inset 1px 1px 0px #dbdbdb, inset -1px -1px 0px #373737;
+}
+
+.mc-panel-dark {
+  background: rgba(20, 20, 25, 0.92);
+  border-top: 2px solid #505058;
+  border-left: 2px solid #505058;
+  border-right: 2px solid #101015;
+  border-bottom: 2px solid #101015;
+}
+
+.mc-slot {
+  background: #8b8b8b;
+  border-top: 2px solid #373737;
+  border-left: 2px solid #373737;
+  border-right: 2px solid #ffffff;
+  border-bottom: 2px solid #ffffff;
+}
+
+.mc-slot:hover {
+  background: #a0a0a0;
+}
+
+.mc-slot.active {
+  border-top: 2px solid #facc15;
+  border-left: 2px solid #facc15;
+  border-right: 2px solid #ca8a04;
+  border-bottom: 2px solid #ca8a04;
+  box-shadow: 0 0 8px rgba(250, 204, 21, 0.6);
+}
+
+.mc-btn {
+  background: #737373;
+  border-top: 2px solid #a3a3a3;
+  border-left: 2px solid #a3a3a3;
+  border-right: 2px solid #262626;
+  border-bottom: 2px solid #262626;
+  color: #f5f5f5;
+  text-shadow: 1px 1px #171717;
+  transition: all 0.05s ease;
+}
+
+.mc-btn:hover {
+  background: #858585;
+}
+
+.mc-btn:active {
+  border-top: 2px solid #262626;
+  border-left: 2px solid #262626;
+  border-right: 2px solid #a3a3a3;
+  border-bottom: 2px solid #a3a3a3;
+  transform: translateY(1px);
+}
+
+.mc-btn-green {
+  background: #22c55e;
+  border-top: 2px solid #86efac;
+  border-left: 2px solid #86efac;
+  border-right: 2px solid #14532d;
+  border-bottom: 2px solid #14532d;
+  color: #ffffff;
+  text-shadow: 1px 1px #052e16;
+}
+
+.mc-btn-green:hover {
+  background: #16a34a;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+::-webkit-scrollbar-thumb {
+  background: #52525b;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #71717a;
+}

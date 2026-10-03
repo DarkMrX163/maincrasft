@@ -1,0 +1,6 @@
+{
+  "name": "Майнкрафт: Мир Друзей (CraftWorld Multiplayer)",
+  "description": "Многопользовательская 3D песочница с воксельным миром, локальным мультиплеером по Wi-Fi, крафтом, общим строительством, поиском сокровищ, чатом и режимом наблюдения за друзьями.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
