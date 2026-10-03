@@ -172,52 +172,53 @@ export class WeatherSystem {
       }
     }
 
-    // Update Rain Particles
+    // Update Rain Particles (Fast typed array iteration)
     if (this.rainPoints && this.rainPoints.visible && this.rainGeometry) {
       this.rainPoints.position.set(cameraPos.x, cameraPos.y - 10, cameraPos.z);
       const posAttr = this.rainGeometry.attributes.position;
       const velAttr = this.rainGeometry.attributes.velocity;
+      const posArr = posAttr.array as Float32Array;
+      const velArr = velAttr.array as Float32Array;
 
       for (let i = 0; i < this.RAIN_COUNT; i++) {
-        let y = posAttr.getY(i) - velAttr.getX(i) * delta;
-        let x = posAttr.getX(i) - 2.5 * delta; // slight wind slant
-        let z = posAttr.getZ(i);
+        const i3 = i * 3;
+        posArr[i3 + 1] -= velArr[i] * delta;
+        posArr[i3 + 0] -= 2.5 * delta;
 
         // Wrap around boundary relative to camera
-        if (y < 0) {
-          y = this.VOLUME_HEIGHT;
-          x = (Math.random() - 0.5) * this.VOLUME_RADIUS * 2;
-          z = (Math.random() - 0.5) * this.VOLUME_RADIUS * 2;
+        if (posArr[i3 + 1] < 0) {
+          posArr[i3 + 1] = this.VOLUME_HEIGHT;
+          posArr[i3 + 0] = (Math.random() - 0.5) * this.VOLUME_RADIUS * 2;
+          posArr[i3 + 2] = (Math.random() - 0.5) * this.VOLUME_RADIUS * 2;
         }
-
-        posAttr.setXYZ(i, x, y, z);
       }
       posAttr.needsUpdate = true;
     }
 
-    // Update Snow Particles
+    // Update Snow Particles (Fast typed array iteration)
     if (this.snowPoints && this.snowPoints.visible && this.snowGeometry) {
       this.snowPoints.position.set(cameraPos.x, cameraPos.y - 10, cameraPos.z);
       const posAttr = this.snowGeometry.attributes.position;
       const velAttr = this.snowGeometry.attributes.velocity;
       const offAttr = this.snowGeometry.attributes.offset;
+      const posArr = posAttr.array as Float32Array;
+      const velArr = velAttr.array as Float32Array;
+      const offArr = offAttr.array as Float32Array;
 
       const time = performance.now() * 0.0015;
 
       for (let i = 0; i < this.SNOW_COUNT; i++) {
-        let y = posAttr.getY(i) - velAttr.getX(i) * delta;
-        // Swaying drift
-        const offset = offAttr.getX(i);
-        let x = posAttr.getX(i) + Math.sin(time + offset) * 0.8 * delta;
-        let z = posAttr.getZ(i) + Math.cos(time + offset * 1.3) * 0.6 * delta;
+        const i3 = i * 3;
+        posArr[i3 + 1] -= velArr[i] * delta;
+        const offset = offArr[i];
+        posArr[i3 + 0] += Math.sin(time + offset) * 0.8 * delta;
+        posArr[i3 + 2] += Math.cos(time + offset * 1.3) * 0.6 * delta;
 
-        if (y < 0) {
-          y = this.VOLUME_HEIGHT;
-          x = (Math.random() - 0.5) * this.VOLUME_RADIUS * 2;
-          z = (Math.random() - 0.5) * this.VOLUME_RADIUS * 2;
+        if (posArr[i3 + 1] < 0) {
+          posArr[i3 + 1] = this.VOLUME_HEIGHT;
+          posArr[i3 + 0] = (Math.random() - 0.5) * this.VOLUME_RADIUS * 2;
+          posArr[i3 + 2] = (Math.random() - 0.5) * this.VOLUME_RADIUS * 2;
         }
-
-        posAttr.setXYZ(i, x, y, z);
       }
       posAttr.needsUpdate = true;
     }

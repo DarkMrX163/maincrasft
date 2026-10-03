@@ -207,9 +207,9 @@ export default function App() {
       powerPreference: 'high-performance',
     });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.BasicShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.0;
 
@@ -417,16 +417,8 @@ export default function App() {
       },
 
       onWorldReset: (newSeed) => {
-        world.seed = newSeed;
-        world.worldMap.clear();
-        world.customEdits.clear();
-        world.generatedChunks.clear();
-        world.loadedMeshChunks.clear();
-        while (world.blockGroup.children.length > 0) {
-          world.blockGroup.remove(world.blockGroup.children[0]);
-        }
-        world.blockMeshes.clear();
-        world.updateChunksAroundPlayer(playerState.pos.x, playerState.pos.z, 3);
+        world.importWorldData({ seed: newSeed });
+        world.updateChunksAroundPlayer(playerState.pos.x, playerState.pos.z, 2);
         sounds.playExplosion();
       },
 
@@ -669,26 +661,11 @@ export default function App() {
     window.addEventListener('resize', handleResize);
 
     // 9. Mining & Interaction logic
-    const raycaster = new THREE.Raycaster();
-    raycaster.far = 5.5; // Reach distance in blocks
-
     const getRaycastHit = () => {
       if (!gameRef.current) return null;
-      raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-      const meshes = Array.from(world.blockMeshes.values());
-      const intersects = raycaster.intersectObjects(meshes, false);
-      if (intersects.length > 0) {
-        const hit = intersects[0];
-        const data = hit.object.userData;
-        return {
-          mesh: hit.object as THREE.Mesh,
-          point: hit.point,
-          normal: hit.face ? hit.face.normal : new THREE.Vector3(0, 1, 0),
-          coord: { x: data.x, y: data.y, z: data.z },
-          blockType: data.blockType as BlockType,
-        };
-      }
-      return null;
+      const cameraDir = new THREE.Vector3();
+      camera.getWorldDirection(cameraDir);
+      return world.raycast(camera.position, cameraDir, 5.5);
     };
 
     const startMining = () => {
@@ -788,6 +765,9 @@ export default function App() {
     let animationFrameId: number;
     let localTime = 6000;
     let lastNetworkSync = 0;
+    let lastTimeSync = 0;
+    let lastPosSync = 0;
+    let lastYawSync = 0;
 
     const animate = () => {
       animationFrameId = requestAnimationFrame(animate);
@@ -796,7 +776,13 @@ export default function App() {
 
       // Advance game day/night time
       localTime = (localTime + delta * 40) % 24000;
-      setGameTime(localTime);
+
+      // Throttle React state update of gameTime to 1Hz (prevents 60 FPS re-renders of entire React tree!)
+      const now = performance.now();
+      if (now - lastTimeSync > 1000) {
+        lastTimeSync = now;
+        setGameTime(Math.floor(localTime));
+      }
 
       const isNight = localTime > 13000 && localTime < 23000;
 
@@ -1050,19 +1036,31 @@ export default function App() {
           // Position Camera at player feet + smooth eye height
           camera.position.set(player.pos.x, player.pos.y + player.eyeHeight, player.pos.z);
 
-          // Update HUD position and orientation for MiniMap
-          setPlayerPos({
-            x: player.pos.x,
-            y: player.pos.y + player.eyeHeight,
-            z: player.pos.z,
-          });
-          setPlayerYaw(cameraEuler.y);
+          // Throttled HUD position and orientation for MiniMap (10 FPS prevents React re-render lag)
+          if (now - lastPosSync > 100) {
+            lastPosSync = now;
+            setPlayerPos((prev) => {
+              const curY = player.pos.y + player.eyeHeight;
+              if (
+                Math.abs(prev.x - player.pos.x) > 0.08 ||
+                Math.abs(prev.y - curY) > 0.08 ||
+                Math.abs(prev.z - player.pos.z) > 0.08
+              ) {
+                return { x: player.pos.x, y: curY, z: player.pos.z };
+              }
+              return prev;
+            });
+          }
+          if (now - lastYawSync > 100) {
+            lastYawSync = now;
+            setPlayerYaw(cameraEuler.y);
+          }
 
           // Dynamic infinite chunk streaming in horizontal width and vertical depth
-          world.updateChunksAroundPlayer(player.pos.x, player.pos.z, 3);
+          world.updateChunksAroundPlayer(player.pos.x, player.pos.z, 2);
+          world.processChunkQueue();
 
           // Network movement broadcast (throttled to ~25Hz)
-          const now = performance.now();
           if (now - lastNetworkSync > 40) {
             lastNetworkSync = now;
             network.sendPosition(
@@ -1217,24 +1215,22 @@ export default function App() {
 
   const handleTouchMineStart = () => {
     if (!gameRef.current) return;
-    const hit = gameRef.current.highlightBox.visible;
-    if (hit) {
-      const raycaster = new THREE.Raycaster();
-      raycaster.far = 5.5;
-      raycaster.setFromCamera(new THREE.Vector2(0, 0), gameRef.current.camera);
-      const meshes = Array.from(gameRef.current.world.blockMeshes.values());
-      const intersects = raycaster.intersectObjects(meshes, false);
-      if (intersects.length > 0) {
-        const hitData = intersects[0].object.userData;
-        gameRef.current.miningBlock = {
-          x: hitData.x,
-          y: hitData.y,
-          z: hitData.z,
-          progress: 0,
-          startTime: performance.now(),
-        };
-        sounds.playBlockBreak();
-      }
+    const cameraDir = new THREE.Vector3();
+    gameRef.current.camera.getWorldDirection(cameraDir);
+    const hit = gameRef.current.world.raycast(
+      gameRef.current.camera.position,
+      cameraDir,
+      5.5
+    );
+    if (hit && hit.blockType !== BlockType.BEDROCK) {
+      gameRef.current.miningBlock = {
+        x: hit.coord.x,
+        y: hit.coord.y,
+        z: hit.coord.z,
+        progress: 0,
+        startTime: performance.now(),
+      };
+      sounds.playBlockBreak();
     }
   };
 
@@ -1247,15 +1243,16 @@ export default function App() {
 
   const handleTouchPlaceBlock = () => {
     if (!gameRef.current) return;
-    const raycaster = new THREE.Raycaster();
-    raycaster.far = 5.5;
-    raycaster.setFromCamera(new THREE.Vector2(0, 0), gameRef.current.camera);
-    const meshes = Array.from(gameRef.current.world.blockMeshes.values());
-    const intersects = raycaster.intersectObjects(meshes, false);
-    if (intersects.length > 0) {
-      const hit = intersects[0];
-      const data = hit.object.userData;
-      const normal = hit.face ? hit.face.normal : new THREE.Vector3(0, 1, 0);
+    const cameraDir = new THREE.Vector3();
+    gameRef.current.camera.getWorldDirection(cameraDir);
+    const hit = gameRef.current.world.raycast(
+      gameRef.current.camera.position,
+      cameraDir,
+      5.5
+    );
+    if (hit) {
+      const data = { blockType: hit.blockType, x: hit.coord.x, y: hit.coord.y, z: hit.coord.z };
+      const normal = hit.normal;
 
       // Chest click
       if (data.blockType === BlockType.CHEST) {
@@ -1346,16 +1343,8 @@ export default function App() {
         body: JSON.stringify({ seed: newSeed }),
       });
       if (gameRef.current) {
-        gameRef.current.world.seed = newSeed;
-        gameRef.current.world.worldMap.clear();
-        gameRef.current.world.customEdits.clear();
-        gameRef.current.world.generatedChunks.clear();
-        gameRef.current.world.loadedMeshChunks.clear();
-        while (gameRef.current.world.blockGroup.children.length > 0) {
-          gameRef.current.world.blockGroup.remove(gameRef.current.world.blockGroup.children[0]);
-        }
-        gameRef.current.world.blockMeshes.clear();
-        gameRef.current.world.updateChunksAroundPlayer(0, 0, 3);
+        gameRef.current.world.importWorldData({ seed: newSeed });
+        gameRef.current.world.updateChunksAroundPlayer(0, 0, 2);
       }
       sounds.playExplosion();
     } catch (e) {}
